@@ -1,0 +1,23 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : To be included in parallel examples
+
+load "medit"
+macro meditMPI(meditMPIOriginalMesh, meditMPIV, meditMPIPk, meditMPIA, meditMPIu, meditMPIDataType, meditMPIn2o)
+{
+  if ( !NoGraphicWindow ) {
+    meditMPIDataType[int] meditMPISolution;
+    changeNumbering(meditMPIA, meditMPIu[], meditMPISolution);
+    changeNumbering(meditMPIA, meditMPIu[], meditMPISolution, inverse = true);
+    fespace meditMPIfesPlot(meditMPIOriginalMesh, meditMPIPk);
+    meditMPIfesPlot<meditMPIDataType> meditMPIuTmp, meditMPIuPlot;
+    int[int] meditMPIRestrict = restrict(meditMPIV, meditMPIfesPlot, meditMPIn2o);
+    for[meditMPIi, meditMPIj : meditMPIRestrict] meditMPIuTmp[][meditMPIj] = meditMPIu[][meditMPIi];
+    mpiReduce(meditMPIuTmp[], meditMPIuPlot[], processor(0, mpiCommWorld), mpiSUM);
+    if( mpirank == 0 ) {
+      meditMPIfesPlot meditMPIuRealPlot = real(meditMPIuPlot);
+      medit("Real part of global solution", meditMPIOriginalMesh, meditMPIuRealPlot);
+    }
+  }
+}//

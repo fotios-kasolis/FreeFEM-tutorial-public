@@ -1,0 +1,81 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++ xmpl-07.edp
+
+// INSULATING BOUNDARIES
+border a001(t = 0.025, 1.000){x = t    ; y = 0.000  ; label = 0;}
+border a002(t = 0.000, 1.000){x = 1.000; y = t      ; label = 0;}
+border a003(t = 1.000, 0.025){x = t    ; y = 1.000  ; label = 0;}
+
+// UPPER TERMINAL BOUNDARIES
+border a004(t = 1.000, 0.700){x = 0.025; y = t      ; label = 1;}
+border a005(t = 0.025, 0.225){x = t    ; y = 0.700  ; label = 1;}
+border a006(t = pi/2 , -pi/2){
+  x = 0.225 + 0.025*cos(t); y = 0.675 + 0.025*sin(t); label = 1;}
+border a007(t = 0.225, 0.000){x = t    ; y = 0.650  ; label = 1;}
+
+// SYMMETRY CUT BOUNDARIES
+border a008(t = 0.650, 0.620){x = 0.000; y = t      ; label = 0;}
+border a009(t = 0.620, 0.420){x = 0.000; y = t      ; label = 0;}
+border a010(t = 0.420, 0.390){x = 0.000; y = t      ; label = 0;}
+
+// LOWER TERMINAL BOUNDARIES
+border a011(t = 0.000, 0.400){x = t    ; y = 0.390  ; label = 2;}
+border a012(t = pi/2 , -pi/2){
+  x = 0.400 + 0.025*cos(t); y = 0.365 + 0.025*sin(t); label = 2;}
+border a013(t = 0.400, 0.025){x = t    ; y = 0.340  ; label = 2;}
+border a014(t = 0.340, 0.000){x = 0.025; y = t      ; label = 2;}
+
+// INTERIOR OBJECT BOUNDARY
+border a015(t = pi/2 , -pi/2){
+  x = 0.000 + 0.100*cos(t); y = 0.520 + 0.100*sin(t);           }
+
+// ARTIFICIAL BORDER FOR NAIVE MESH RESOLUTION CONTROL
+border a016(t = 0.620, 0.420){x = 0.400; y = t      ;           }
+
+// GENERATE TRIANGULATION
+int n = 20; // integer data type
+mesh T = buildmesh(a001(n)   + a002(n)   + a003(n)   +
+                   a004(n)   + a005(n)   + a006(n/2) + a007(2*n) +
+                   a008(n/2) + a009(2*n) + a010(n/2) +
+                   a011(2*n) + a012(n/2) + a013(n)   + a014(n)   +
+                   a015(2*n)); // add a016(n));
+plot(T, fill = true, wait = true);
+
+// DETERMINE DEFAULT DOMAIN INDICATORS AND CHANGE THEM
+int airDef = T(0.5 , 0.5).region; // default indicator for air
+int objDef = T(0.05, 0.5).region; // default indicator for object
+cout << "USER/ Default indicator for air   : " << airDef << endl;
+cout << "USER/ Default indicator for object: " << objDef << endl;
+int[int] newIndicators = [airDef, 3, objDef, 4]; // new indicators
+T = change(T, region = newIndicators);
+int airNew = T(0.5 , 0.5).region;
+int objNew = T(0.05, 0.5).region;
+cout << "USER/ New indicator for air must be 3   : " << airNew << endl;
+cout << "USER/ New indicator for object must be 4: " << objNew << endl;
+
+// DEFINE PERMITTIVITY THROUGHOUT OMEGA
+real epsAir = 1.0; // relative permittivity value for air
+real epsObj = 9.0; // relative permittivity value for object
+fespace V0(T, P0);
+V0 eps = epsAir*( region == airNew ) + epsObj*( region == objNew );
+plot(eps, value = true, fill = true, wait = true);
+
+// DEFINE, ASSEMBLE, AND SOLVE
+varf a(u, v) = int2d(T)( eps*(dx(u)*dx(v) + dy(u)*dy(v)) )
+               + on(1, u = 1.0) + on(2, u = 0.0);
+varf l(u, v) = on(1, u = 1.0) + on(2, u = 0.0);
+fespace V2(T, P2);
+matrix A = a(V2, V2);
+real[int] b = l(0, V2);
+V2 u;
+u[] = A^-1*b;
+plot(u, fill = true, nbiso = 64, wait = true);
+
+// ELECTRIC FIELD COMPUTATION
+fespace V1(T, P1);
+V1 Ex = -dx(u);
+V1 Ey = -dy(u);
+V1 Enorm = sqrt(Ex^2 + Ey^2);
+plot(Enorm, [Ex, Ey], fill = true, nbiso = 64, wait = true);

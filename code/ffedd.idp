@@ -1,0 +1,18 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : To be loaded in xmpl-06.edp
+
+macro exactDirichletData(oEDDsol, iEDDfespace, iEDDbilinear,
+                                               iEDDlinear, iEDDbnd)
+{
+  matrix A = iEDDbilinear(iEDDfespace, iEDDfespace, tgv = -1);
+  real[int] btmp = A*iEDDbnd[];
+  real[int] b = iEDDlinear(0, iEDDfespace);
+  b -= btmp;
+  b += iEDDbnd[];
+  A = iEDDbilinear(iEDDfespace, iEDDfespace, tgv = -2);
+  iEDDfespace u0;
+  u0[] = A^-1*b;
+  u = u0 + iEDDbnd;
+}//

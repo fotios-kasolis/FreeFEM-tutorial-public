@@ -1,0 +1,48 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : mpiexec.exe -n 4 FreeFem++-mpi xmpl-10.edp -wg
+
+macro dimension() 3        //
+macro partioner() parmetis // change partioner; default is metis
+load "PETSc-complex"
+include "macro_ddm.idp"
+include "meditMPI.idp"
+include "xmpl-09-geo.idp"
+
+func Pk = P1;                       // keep element type consistent
+macro grad(u) [dx(u), dy(u), dz(u)] // define gradient
+
+int n = 10;
+mesh T = buildmesh(a001(16*n) + a002(16*n) + a003(4*n) +
+                   a004(4*n)  + a005(n/5)  + a006(8*n) +
+                   a007(4*n)  + a008(n)    + a009(-8*n));
+mesh3 T3 = buildlayers(T, 40, zbound    = [0, -2.0*pi],
+                              transfo   = [y*cos(z), x, y*sin(z)],
+                              facemerge = true);
+
+// STORE ORIGINAL MESH AND INITIALIZE n2o FOR GLOBAL SOLUTION PLOT
+mesh3 originalMesh = T3;
+int[int] n2o;
+macro T3N2O() n2o //
+
+// DISTRIBUTE, DEFINE, ASSEMBLE, SOLVE
+Mat<complex> A; // define A as complex
+createMat(T3, A, Pk);
+real k = 2.0*pi*1200/345.0;
+varf a(u, v) = int3d(T3)( grad(u)'*grad(v) )
+             + int3d(T3)(-k*k*u*v )
+             + int2d(T3, absorbBndLabel)( 1.0i*k*u*v + u*v )
+             + int2d(T3, sourceBndLabel)( 1.0i*k*u*v );
+varf l(u, v) = int2d(T3, sourceBndLabel)( 2.0i*k*v );
+fespace V(T3, Pk);
+A = a(V, V, tgv = -1);
+set(A, sparams = "-ksp_type preonly -pc_type lu");
+complex[int] b = l(0, V, tgv = -1); // define b complex
+V<complex> u;                       // define u as complex
+u[] = A^-1*b;
+
+// POSTPROCESSING
+V uReal = real(u);
+medit("Local solutions", T3, uReal);
+meditMPI(originalMesh, V, Pk, A, u, complex, n2o);

@@ -1,0 +1,65 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++ xmpl-09.edp
+
+load "medit"
+include "xmpl-09-geo.idp"
+
+// PROBLEM ON ORIGINAL MESH T THAT INCLUDES S
+int n = 10;
+mesh T = buildmesh(a001(16*n) + a002(16*n) + a003(4*n) +
+                   a004(4*n)  + a005(n/5)  + a006(8*n) +
+                   a007(4*n)  + a008(n)    + a009(8*n));
+
+int air = T(1.000, 0.900).region;
+int obj = T(0.950, 0.100).region;
+fespace V0(T, P0);
+V0 rho = 1.0*( region == air ) + 1.0e-8*( region == obj );
+
+real k = 2.0*pi*1200/345.0;
+varf a(u, v) = int2d(T)( rho*y*(dx(u)*dx(v) + dy(u)*dy(v)) )
+             + int2d(T)(-rho*y*k*k*u*v )
+             + int1d(T, absorbBndLabel)( 1.0i*k*u*v + u*v )
+             + int1d(T, sourceBndLabel)( 1.0i*k*u*v );
+varf l(u, v) = int1d(T, sourceBndLabel)( 2.0i*k*v );
+
+fespace V2(T, P2);
+matrix<complex> AOnT = a(V2, V2);
+complex[int] bOnT = l(0, V2);
+V2<complex> uOnT;
+uOnT[] = AOnT^-1*bOnT;
+
+V2 uOnTReal = real(uOnT);
+plot(uOnTReal, value = true, fill = true, nbiso = 64, wait = true);
+
+// TRUNC MODIFIES T, AND HENCE, V0 AND V2 AS WELL
+mesh originalMesh = T;
+int[int] n2o;
+T = trunc(T, region == air, label = unusedBndLabel, new2old = n2o);
+rho = 1.0; // redefine rho on the new V0 fespace on new mesh
+           // not needed but makes the code more transparent
+matrix<complex> AOnTt = a(V2, V2);
+complex[int] bOnTt = l(0, V2);
+V2<complex> uOnTt;
+uOnTt[] = AOnTt^-1*bOnTt;
+V2 uOnTtReal = real(uOnTt);
+plot(uOnTtReal, value = true, fill = true, nbiso = 64, wait = true);
+
+// COMPARISON OF RESULTS
+fespace V2OnOriginalMesh(originalMesh, P2);
+
+// SET ZEROS WITHIN OBJECT FOR ORIGINAL MESH SOLUTION uOnTReal
+V2OnOriginalMesh uTmp = uOnTReal * (region == air);
+plot(uTmp, value = true, fill = true, nbiso = 64, wait = true);
+
+// EXTEND WITH ZEROS uOnTtReal TO ORIGINAL MESH
+int[int] rest = restrict(V2, V2OnOriginalMesh, n2o);
+V2OnOriginalMesh uRealExtended;
+for[i, j : rest] uRealExtended[][j] = uOnTtReal[][i];
+
+// CHECK THE DIFFERENCE
+V2OnOriginalMesh diff = abs(uRealExtended - uTmp);
+real L2Norm = sqrt(int2d(originalMesh)(diff*diff));
+cout << "USER/ The L2 norm of the difference is: " << L2Norm << endl;
+plot(diff, value = true, fill = true, nbiso = 64, wait = true);

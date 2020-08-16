@@ -1,0 +1,34 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++-mpi xmpl-11.edp
+
+border a001(t = 0.0*pi, 1.0*pi){x = cos(t)  ; y = sin(t)  ;}
+border a002(t = 1.0*pi, 2.0*pi){x = cos(t)  ; y = sin(t)  ;}
+border a003(t = 0.0*pi, 2.0*pi){x = cos(t)/2; y = sin(t)/4;}
+mesh T = buildmesh( a001(25) + a002(100) + a003(300) );
+plot(T, wait = true, cmm = "Original mesh");
+real hmax = 0.1; // approximate maximum mesh size
+int reg = T(0.0, 0.0).region;
+
+// ADAPTMESH BASED ON REGION/LABEL FUNCTION
+func f = hmax - 0.8*hmax*( region == reg ) - 0.8*hmax*( label == a001 );
+T = adaptmesh(T, f, IsMetric = true, nbvx = 100000);
+plot(T, wait = true, cmm = "Modified mesh");
+
+// ADAPTMESH BASED ON LAPLACIAN FIELD
+varf a(u, v) = int2d(T)( dx(u)*dx(v) + dy(u)*dy(v) )
+             + on(a001, a002, a003, u = 0); // u value is not used
+varf l(u, v) = on(a001, a002, u = hmax) + on(a003, u = 0.2*hmax);
+fespace V1(T, P1);
+V1 u;
+matrix A = a(V1, V1, tgv = -1);
+real[int] b = l(0, V1, tgv = -1);
+u[] = A^-1*b;
+T = adaptmesh(T, u, IsMetric = true, nbvx = 100000);
+plot(T, wait = true, cmm = "New modified mesh");
+
+// GET MAXIMUM SIDE-LENGTH OF EACH TRIANGLE
+fespace V0(T, P0);
+V0 hSize = hTriangle;
+plot(hSize, value = true, fill = true, nbiso = 64, wait = true);

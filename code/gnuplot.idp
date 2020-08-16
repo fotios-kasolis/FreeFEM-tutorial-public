@@ -1,0 +1,105 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : include "gnuplot.idp"
+// REQUIRES           : gnuplot installed and in the path
+
+IFMACRO( !GPFILENAME )
+macro GPFILENAME(ID) "gpdata-" + Stringification(ID);//
+ENDIFMACRO
+
+IFMACRO( !GPOPTIONS )
+macro GPOPTIONS(GPSCRIPT)
+{
+  IFMACRO( gpGridOn )
+  GPSCRIPT << "set grid xtics lt 1 lw 1 lc rgb '#bbbbbb'" << endl;
+  GPSCRIPT << "set grid ytics lt 1 lw 1 lc rgb '#bbbbbb'" << endl;
+  ENDIFMACRO
+  IFMACRO( gpxGridOn )
+  GPSCRIPT << "set grid xtics lt 1 lw 1 lc rgb '#bbbbbb'" << endl;
+  ENDIFMACRO
+  IFMACRO( gpyGridOn )
+  GPSCRIPT << "set grid ytics lt 1 lw 1 lc rgb '#bbbbbb'" << endl;
+  ENDIFMACRO
+  IFMACRO( gpAxesTight )
+  GPSCRIPT << "set autoscale fix" << endl;
+  ENDIFMACRO
+  IFMACRO( gpxLogScale )
+  GPSCRIPT << "set logscale x" << endl;
+  ENDIFMACRO
+  IFMACRO( gpyLogScale )
+  GPSCRIPT << "set logscale y" << endl;
+  ENDIFMACRO
+  IFMACRO( gpLogLogScale )
+  GPSCRIPT << "set logscale xy" << endl;
+  ENDIFMACRO
+  cout << "gnuplot: Define none or more of the macros" << endl;
+  cout << "1. gpGridOn     : to set the grid in both x and y   " << endl;
+  cout << "2. gpxGridOn    : to set grid in x                  " << endl;
+  cout << "3. gpyGridOn    : to set grid in y                  " << endl;
+  cout << "4. gpAxesTight  : to fit the axes ranges to the plot" << endl;
+  cout << "5. gpxLogScale  : to set log scale in x             " << endl;
+  cout << "6. gpyLogScale  : to set log scale in y             " << endl;
+  cout << "7. gpLogLogScale: to set log scale in both x and y  " << endl;
+  cout << "before calling gnuPlot. To restrict the macro option" << endl;
+  cout << "enclose its definition and the call to gnuPlot in {}" << endl;
+}//
+ENDIFMACRO
+
+IFMACRO ( !GPREMOVESPACES )
+macro GPREMOVESPACES(STRING)
+{
+  int spacePosition = STRING.find(" ");
+  while ( spacePosition > -1 ) {
+    STRING(spacePosition:spacePosition) = "";
+    spacePosition = STRING.find(" ");
+  }
+}//
+ENDIFMACRO
+
+// BASIC LINE PLOT FOR real[int] ARRAYS
+macro gnuPlot(xData, yData, xLabel, yLabel, style, id)
+{
+  int lengthxData = xData.n;
+  int lengthyData = yData.n;
+  if ( lengthxData != lengthyData ) {
+    cout << "gnuplot: Incompatible data dimensions; xData.n == yData.n must be true." << endl;
+    exit(1);
+  }
+  string gpFileName = GPFILENAME(id);
+  GPREMOVESPACES(gpFileName);
+  {
+    ofstream gpdata( gpFileName + ".gp" );
+    for ( int cnt = 0; cnt < lengthxData; cnt++ ) {
+      gpdata << xData(cnt) << " " << yData(cnt) << endl;
+    }
+  }
+  {
+    ofstream gpscript( gpFileName + "-script.plt" );
+    GPOPTIONS(gpscript);
+    gpscript << "set xlabel '" << Stringification(xLabel) << "'" << endl;
+    gpscript << "set ylabel '" << Stringification(yLabel) << "'" << endl;
+    gpscript << "plot '" << gpFileName << ".gp' title '' " << Stringification(style) << endl;
+    gpscript << "pause -1 'Hit return to continue'" << endl;
+  }
+  string gpcall = "gnuplot " + gpFileName + "-script.plt";
+  exec(gpcall);
+}//
+
+// EXAMPLES
+// real[int] X = 0:0.01*pi:2*pi;
+// real[int] Y = sin(X);
+// gnuPlot(X, Y,  ,  ,,);
+// gnuPlot(X, Y, x,  ,,);
+// gnuPlot(X, Y,  , y,,);
+// gnuPlot(X, Y, x, y,,);
+// {
+//   macro gpAxesTight()//
+//   gnuPlot(X, Y, x, y, w l,);
+// }
+// gnuPlot(X, Y, x, y, w l lw 5,);
+// {
+//   macro gpAxesTight()//
+//   macro gpGridOn()//
+//   gnuPlot(X, Y, x, y, w l lw 5 lc rgb 'steelblue',);
+// }

@@ -1,0 +1,84 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++-mpi xmpl-12.edp -now 5
+
+load "msh3"
+load "tetgen"
+load "mmg"
+load "medit"
+
+include "getARGV.idp"
+include "MeshSurface.idp"
+
+// DEFINE GEOMETRICAL PARAMETERS
+real r = 0.2,        // cable radius
+     R = 1.0,        // winding radius
+     w = 0.075;      // windings distance parametrer
+
+// NUMBER OF WINDINGS AS INPUT
+int nOfWindings = getARGV("-now", 1);
+
+// TWO-DIMENSIONAL MESH
+border a001(t = 0, 2.0*pi) {
+  x = R + r*cos(t); y = r*sin(t); label = 0; }
+int resMesh2D = 25; // two-dimensional mesh resolution
+mesh T2 = buildmesh( a001(resMesh2D) );
+
+int surfIndicator = T2(R, 0.0).region;
+
+// GENERATE THREE-DIMENSIONAL MESHES OF INTERIOR OBJECTS
+int[int] labTo0 = [surfIndicator, 0];
+int[int] labTo1 = [surfIndicator, 1];
+int[int] labTo2 = [surfIndicator, 2];
+mesh3 T3Coil = buildlayers(T2, nOfWindings*200,
+                        zbound    = [2.0*pi*nOfWindings, 0.0],
+                        transfo   = [x*cos(z), x*sin(z), w*z + y],
+                        labelup   = labTo0,
+                        labeldown = labTo0); // coil
+
+mesh3 T3PipeL = buildlayers(T2,  75, zbound = [0.0, -3.0*R],
+                        transfo   = [x, z, y],
+                        labelup   = labTo1,
+                        labeldown = labTo0); // lower pipe
+
+mesh3 T3PipeU = buildlayers(T2,  75, zbound = [3.0*R, 0.0],
+                        transfo   = [x, z, 2*pi*nOfWindings*w + y],
+                        labelup   = labTo0,
+                        labeldown = labTo2); // upper pipe
+
+// OBTAIN THE SURFACE MESHES
+T3Coil  = buildBdMesh(T3Coil ); // attach surface mesh to mesh3 objects
+T3PipeL = buildBdMesh(T3PipeL);
+T3PipeU = buildBdMesh(T3PipeU);
+meshS T3CoilS  = T3Coil .Gamma; // extract surface meshes as meshS
+meshS T3PipeLS = T3PipeL.Gamma;
+meshS T3PipeUS = T3PipeU.Gamma;
+
+// BOUNDING BOX SURFACE MESH / NEEDS MeshSurface.idp
+int[int]       boxRes = [50, 50, 50];
+real[int, int] boxLim = [[-4.0*R, 4.0*R], [-4.0*R, 4.0*R],
+                         [-3*R, 2*pi*nOfWindings*w + 3.0*R]];
+int [int, int] boxLab = [[3, 3], [3, 3], [3, 3]];
+meshS T3BoxS = SurfaceHex(boxRes, boxLim, boxLab, -1);
+
+// GLUE SURFACE MESHES
+meshS T3AllS = T3BoxS + T3CoilS + T3PipeLS + T3PipeUS;
+
+// BUILD THREE-DIMENSIONAL MESH WITH TETGEN
+mesh3 T3 = tetg(T3AllS, switch = "pqAQ");
+medit("First mesh", T3);
+
+// SET TWO DOMAIN INDICATORS
+int coil = 1, void = 2;
+int[int] regIndicators = regions(T3);
+T3 = change(T3, fregion = coil*(region == regIndicators[0]) +
+                          void*(region == regIndicators[1]) +
+                          coil*(region == regIndicators[2]) +
+                          coil*(region == regIndicators[3]));
+
+// THREE-DIMENSIONAL MESH REFINEMENT
+fespace V1(T3, P1);
+V1 iso = 0.05*( region == coil ) + 0.5*( region == void ); // mesh size
+T3 = mmg3d(T3, metric = iso[]);
+medit("Final mesh", T3);

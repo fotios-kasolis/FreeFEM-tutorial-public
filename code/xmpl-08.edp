@@ -1,0 +1,98 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : mpiexec -n 8 FreeFem++-mpi xmpl-08.edp -wg
+
+load "medit"
+macro dimension() 3//
+load "PETSc"
+include "macro_ddm.idp"
+
+// INSULATING BOUNDARIES
+border a001(t = 0.025, 1.000){x = t    ; y = 0.000  ; label = 0;}
+border a002(t = 0.000, 1.000){x = 1.000; y = t      ; label = 0;}
+border a003(t = 1.000, 0.025){x = t    ; y = 1.000  ; label = 0;}
+
+// UPPER TERMINAL BOUNDARIES
+border a004(t = 1.000, 0.700){x = 0.025; y = t      ; label = 1;}
+border a005(t = 0.025, 0.225){x = t    ; y = 0.700  ; label = 1;}
+border a006(t = pi/2 , -pi/2){
+  x = 0.225 + 0.025*cos(t); y = 0.675 + 0.025*sin(t); label = 1;}
+border a007(t = 0.225, 0.000){x = t    ; y = 0.650  ; label = 1;}
+
+// SYMMETRY CUT BOUNDARIES
+border a008(t = 0.650, 0.620){x = 0.000; y = t      ; label = 0;}
+border a009(t = 0.620, 0.420){x = 0.000; y = t      ; label = 0;}
+border a010(t = 0.420, 0.390){x = 0.000; y = t      ; label = 0;}
+
+// LOWER TERMINAL BOUNDARIES
+border a011(t = 0.000, 0.400){x = t    ; y = 0.390  ; label = 2;}
+border a012(t = pi/2 , -pi/2){
+  x = 0.400 + 0.025*cos(t); y = 0.365 + 0.025*sin(t); label = 2;}
+border a013(t = 0.400, 0.025){x = t    ; y = 0.340  ; label = 2;}
+border a014(t = 0.340, 0.000){x = 0.025; y = t      ; label = 2;}
+
+// INTERIOR OBJECT BOUNDARY
+border a015(t = pi/2 , -pi/2){
+  x = 0.000 + 0.100*cos(t); y = 0.520 + 0.100*sin(t);           }
+
+// ARTIFICIAL BORDER FOR NAIVE MESH RESOLUTION CONTROL
+border a016(t = 0.620, 0.420){x = 0.400; y = t      ;           }
+
+// GENERATE TRIANGULATION
+int n = 20; // integer data type
+mesh T = buildmesh(a001(n)   + a002(n)   + a003(n)   +
+                   a004(n)   + a005(n)   + a006(n/2) + a007(2*n) +
+                   a008(n/2) + a009(2*n) + a010(n/2) +
+                   a011(2*n) + a012(n/2) + a013(n)   + a014(n)   +
+                   a015(2*n)); // add a016(n));
+//plot(T, fill = true, wait = true);
+
+// ROTATE 2D MESH AROUND Z AXIS
+mesh3 T3 = buildlayers(T, 40, zbound    = [0, -2.0*pi],
+                              transfo   = [x*cos(z), x*sin(z), y],
+                              facemerge = true);
+
+// DEFINE PERMITTIVITY THROUGHOUT OMEGA
+int air = T3(0.5, 0.0, 0.5).region;
+int obj = T3(0.0, 0.0, 0.5).region;
+real epsAir = 1.0; // relative permittivity value for air
+real epsObj = 9.0; // relative permittivity value for object
+
+
+// BEFORE CALL TO createMat
+mesh3 originalMesh = T3; // keep mesh before dd for its numbering
+int[int] n2o;            // define a global variable to store the
+                         // mapping between different numberings
+macro T3N2O() n2o        // mesh name followed by N20 and the global
+                         // variable you just defined
+
+Mat A;
+createMat(T3, A, P1);
+fespace V0(T3, P0);
+V0 eps = epsAir*( region == air ) + epsObj*( region == obj );
+varf a(u, v) = int3d(T3)( eps*(dx(u)*dx(v) + dy(u)*dy(v) + dz(u)*dz(v)) )
+               + on(1, u = 1.0) + on(2, u = 0.0);
+varf l(u, v) = on(1, u = 1.0) + on(2, u = 0.0);
+fespace V1(T3, P1);
+A = a(V1, V1, tgv = -1);
+set(A, sparams = "-ksp_type preonly -pc_type lu");
+real[int] b = l(0, V1, tgv = -1);
+V1 u;
+u[] = A^-1*b;
+medit("Local solutions", T3, u);
+
+// AFTER u = A^-1*b
+if ( !NoGraphicWindow ) {
+  real[int] sol;
+  changeNumbering(A, u[], sol);                   // FF2PETSc
+  changeNumbering(A, u[], sol, inverse = true);   // PETSc2FF
+  fespace fesPlot(originalMesh, P1);
+  fesPlot uTmp, uPlot;
+  int[int] rest = restrict(V1, fesPlot, n2o);
+  for[i, j : rest] uTmp[][j] = u[][i];
+  mpiReduce(uTmp[], uPlot[], processor(0, mpiCommWorld), mpiSUM);
+  if( mpirank == 0 ) {
+    medit("Global solution", originalMesh, uPlot);
+  }
+}

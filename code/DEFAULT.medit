@@ -1,0 +1,11 @@
+#  Assign background color
+BackgroundColor
+1.000000 1.000000 1.000000
+
+# Render mode
+RenderMode
+colorshading
+
+#  Window Size
+WindowSize
+1137 1137

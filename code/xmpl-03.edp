@@ -1,0 +1,26 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : mpiexec -n 8 FreeFem++-mpi xmpl-03.edp -wg
+
+load "PETSc"                // PETSc plugin
+macro dimension() 3         // problem's dimension
+include "macro_ddm.idp"     // domain decomposition definitions
+
+mesh3 T = cube(10, 10, 10); // global mesh
+Mat A;
+createMat(T, A, P2);
+
+// AFTER THIS POINT FESPACES AND FUNCTIONS ARE LOCAL TO THE PORCESS
+fespace V(T, P2);
+varf a(u, v) = int3d(T)( dx(u)*dx(v) + dy(u)*dy(v) + dz(u)*dz(v) )
+               + on(1, 2, u = 0.0);
+varf l(u, v) = int3d(T)( x*v ) + on(1, 2, u = 0.0);
+A = a(V, V, tgv = -1);
+real[int] b = l(0, V, tgv = -1);
+V u;
+u[] = A^-1 * b;
+
+// PLOT GLOBAL SOLUTION
+macro def(u) u //
+plotMPI(T, u, P2, def, real, cmm = "Solution");

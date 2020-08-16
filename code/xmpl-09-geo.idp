@@ -1,0 +1,46 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : To be loaded in xmpl-09.edp
+
+int unusedBndLabel = 0;
+int sourceBndLabel = 1;
+int absorbBndLabel = 2;
+real t0 = pi - asin(0.075);
+
+border a001(t = 0.000          , 2.000    ) {
+  x = t;
+  y = 0.000;
+  label = unusedBndLabel;}
+border a002(t = 0.000          , t0       ) {
+  x = 1.000 + cos(t);
+  y = sin(t);
+  label = absorbBndLabel;}
+border a003(t = 1.000 + cos(t0), 0.475    ) {
+  x = t;
+  y = sin(t0);
+  label = unusedBndLabel;}
+border a004(t =-0.500*pi       , 0.000    ) {
+  x = 0.475 + 0.500*cos(t);
+  y = 0.500 + sin(t0) + 0.5*sin(t);
+  label = unusedBndLabel;}
+border a005(t = 0.975          , 1.000    ) {
+  x = t;
+  y = 0.500 + sin(t0);
+  label = unusedBndLabel;}
+border a006(t = 0.000          , -0.500*pi) {
+  x = 0.500 + 0.500*cos(t);
+  y = 0.500 + sin(t0) + 0.525*sin(t);
+  label = unusedBndLabel;}
+border a007(t = 0.500          , 0.000    ) {
+  x = t;
+  y = 0.050;
+  label = unusedBndLabel;}
+border a008(t = 0.050          , 0.000    ) {
+  x = 0.000;
+  y = t;
+  label = sourceBndLabel;}
+border a009(t = 0.000          , 2.000*pi ) {
+  x = 0.950 + 0.050*cos(t);
+  y = 0.100 + 0.050*sin(t);
+  label = unusedBndLabel;}

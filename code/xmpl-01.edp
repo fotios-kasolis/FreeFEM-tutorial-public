@@ -1,0 +1,14 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++ xmpl-01.edp
+
+mesh T = square(10, 10);
+fespace V(T, P2);
+varf a(u, v) = int2d(T)( dx(u)*dx(v) + dy(u)*dy(v) ) + on(1, 2, u = 0.0);
+varf l(u, v) = int2d(T)( x*v ) + on(1, 2, u = 0.0);
+matrix A = a(V, V);
+real[int] b = l(0, V);
+V u;
+u[] = A^-1*b;
+plot(u, value = true, fill = true, wait = true, ps = "solution.eps");

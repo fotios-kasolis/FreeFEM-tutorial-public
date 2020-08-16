@@ -1,0 +1,39 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++ xmpl-extra-01.edp
+
+int n = 50;
+border a001(t = 0.0, 2.0*pi){ x = 1.0*cos(t); y = 1.0*sin(t); }
+border a002(t = 0.0, 2.0*pi){ x = 0.5*cos(t); y = 0.5*sin(t); }
+mesh T = buildmesh( a001(2*n) + a002(n) );
+
+// INNER DOMAIN INDICATOR
+int innerDomain = T(0.0, 0.0).region;
+
+// INNER DISK MESH
+int[int] n2o;               // mapping between T and TInner
+mesh TInner = trunc(T, region == innerDomain, new2old = n2o);
+cout << "USER/ Initial mesh  :" << innerDomain << endl;
+cout << "USER/ Truncated mesh:" << regions(TInner)[0] << endl;
+
+
+fespace VInner(TInner, P1); // fespace only in inner domain
+VInner v = x*y;             // defined only in inner domain
+plot(T, v, fill = true, nbiso = 64, wait = true);
+
+// EXTEND v BY INTERPOLATION
+fespace V(T, P1);           // fespace everywhere
+V u = v;                    // interpolation in = operator
+plot(T, u, fill = true, nbiso = 64, wait = true);
+
+// EXTEND v BY ZEROS
+V w = 0.0;
+int[int] rest = restrict(VInner, V, n2o); // VInner and V must have
+                                          // same type of elements
+for[i, j : rest] w[][j] = v[][i];
+plot(T, w, fill = true, nbiso = 64, wait = true);
+
+// ELIMINATE THE STRIP OF ELEMENTS OUTSIDE innerDomain
+w = w * (region == innerDomain);
+plot(T, w, fill = true, nbiso = 64, wait = true);

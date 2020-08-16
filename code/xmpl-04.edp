@@ -1,0 +1,38 @@
+// COPYRIGHT (C) 2020 : Fotios Kasolis, kasolis@uni-wuppertal.de
+// LICENSE            : GPLv3.0, https://www.gnu.org/licenses
+// TESTED WITH        : FreeFEM 4.6, FreeFem++-4.6-99-dev-win64.exe
+// EXECUTION          : FreeFem++ xmpl-04.edp
+
+mesh T = square(10, 10);
+fespace V(T, P2);
+
+// EXTENSION OF DIRICHLET DATA
+varf bndDirichlet(u, v) = on(2, 4, u = y);
+V EuD;
+EuD[] = bndDirichlet(0, V, tgv = 1.0);
+plot(EuD, value = true, fill = true, wait = true);
+
+// DEFINITION OF FORMS, ASSEMBLY, AND SOLUTION
+varf a(u, v) = int2d(T)( dx(u)*dx(v) + dy(u)*dy(v) )
+               + on(2, 4, u = 0.0);
+varf l(u, v) = int2d(T)( v - dx(EuD)*dx(v) - dy(EuD)*dy(v) )
+               + on(2, 4, u = 0.0);
+matrix A = a(V, V, tgv = -2);
+real[int] b = l(0, V);
+V u0;
+u0[] = A^-1*b;
+plot(u0, value = true, fill = true, wait=true, cmm = "u0");
+
+// COMPUTATION OF SOLUTION TO THE ORIGINAL PROBLEM
+V u = u0 + EuD;
+plot(u, value = true, fill = true, wait = true, cmm = "u");
+
+// DEFAULT DIRICHLET DATA IMPLEMENTATION
+V uDef, v;
+solve varDef(uDef, v) = int2d(T)( dx(uDef)*dx(v) + dy(uDef)*dy(v) )
+                        - int2d(T)( v ) + on(2, 4, uDef = y);
+plot(uDef, value = true, fill = true, wait = true, cmm = "Default u");
+
+// DIFFERENCE BETWEEN HOMOGENIZED AND DEFAULT D.DATA IMPLEMENTATION
+V diff = abs(u - uDef);
+plot(diff, value = true, fill = true, wait = true, cmm = "Difference");
